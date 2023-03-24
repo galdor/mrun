@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"text/template"
 )
 
 type RunnerCfg struct {
@@ -35,10 +37,21 @@ func (r *Runner) Start() error {
 	r.programs = make([]*Program, r.Cfg.NbInstances)
 
 	name := r.Cfg.ProgramName
-	args := r.Cfg.ProgramArguments
 
 	for i := 0; i < r.Cfg.NbInstances; i++ {
-		program := NewProgram(i+1, name, args)
+		instanceId := i + 1
+
+		args := make([]string, len(r.Cfg.ProgramArguments))
+		for idx, arg := range r.Cfg.ProgramArguments {
+			arg2, err := r.renderArgument(arg, instanceId)
+			if err != nil {
+				return fmt.Errorf("cannot render argument %q: %w", arg, err)
+			}
+
+			args[idx] = arg2
+		}
+
+		program := NewProgram(instanceId, name, args)
 
 		if err := program.Start(&r.wg); err != nil {
 			for j := 0; j < i; j++ {
@@ -84,4 +97,24 @@ func (r *Runner) Info(format string, args ...interface{}) {
 
 func (r *Runner) Error(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, "error: "+format+"\n", args...)
+}
+
+func (r *Runner) renderArgument(arg string, instanceId int) (string, error) {
+	ctx := struct {
+		InstanceId int
+	}{
+		InstanceId: instanceId,
+	}
+
+	tpl, err := template.New("string").Parse(arg)
+	if err != nil {
+		return "", fmt.Errorf("cannot parse template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tpl.Execute(&buf, ctx); err != nil {
+		return "", fmt.Errorf("cannot render template: %w", err)
+	}
+
+	return buf.String(), nil
 }

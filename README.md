@@ -9,6 +9,13 @@ easy to spawn several copies of the same program, let them connect together
 and see how they behave.
 
 ## Usage
+The simplest example executes multiple instances of the `echo` program, each
+one printing a message containing its instance identifier:
+
+```
+mrun 3 echo "I'm instance {{.InstanceId}}."
+```
+
 See `mrun -h` for more information.
 
 # Licensing
