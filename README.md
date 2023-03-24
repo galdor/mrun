@@ -9,7 +9,7 @@ easy to spawn several copies of the same program, let them connect together
 and see how they behave.
 
 ## Usage
-_TODO_
+See `mrun -h` for more information.
 
 # Licensing
 MRun is open source software distributed under the
