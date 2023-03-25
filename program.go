@@ -58,7 +58,7 @@ func (p *Program) Start(wg *sync.WaitGroup) error {
 	go p.readOutput("stdout", stdoutPipe)
 	go p.readOutput("stderr", stderrPipe)
 
-	p.Info("program started (pid: %d)", p.cmd.Process.Pid)
+	p.LogStatus("program started (pid: %d)", p.cmd.Process.Pid)
 
 	return nil
 }
@@ -71,14 +71,13 @@ func (p *Program) Kill() error {
 	return nil
 }
 
-func (p *Program) Info(format string, args ...interface{}) {
+func (p *Program) LogStatus(format string, args ...interface{}) {
 	args2 := append([]interface{}{p.Id}, args...)
-	fmt.Printf("[%3d] "+format+"\n", args2...)
+	fmt.Fprintf(os.Stderr, "[%d] # "+format+"\n", args2...)
 }
 
-func (p *Program) Error(format string, args ...interface{}) {
-	args2 := append([]interface{}{p.Id}, args...)
-	fmt.Fprintf(os.Stderr, "[%3d] error: "+format+"\n", args2...)
+func (p *Program) LogOutput(line []byte) {
+	fmt.Printf("[%d]   "+string(line)+"\n", p.Id)
 }
 
 func (p *Program) main() {
@@ -101,12 +100,12 @@ func (p *Program) readOutput(name string, output io.Reader) {
 		line, isPrefix, err := r.ReadLine()
 		if err == io.EOF {
 			if len(buf) > 0 {
-				p.Info("%s: %s", name, buf)
+				p.LogOutput(buf)
 			}
 
 			break
 		} else if err != nil {
-			p.Error("cannot read %s: %v", name, err)
+			p.LogStatus("cannot read %s: %v", name, err)
 			return
 		}
 
@@ -116,7 +115,7 @@ func (p *Program) readOutput(name string, output io.Reader) {
 			continue
 		}
 
-		p.Info("%s: %s", name, buf)
+		p.LogOutput(buf)
 
 		buf = []byte{}
 	}
@@ -126,24 +125,24 @@ func (p *Program) reportResult(result error) {
 	var exitErr *exec.ExitError
 
 	if result == nil {
-		p.Info("program exited successfully")
+		p.LogStatus("program exited successfully")
 	} else if errors.As(result, &exitErr) {
 		if s, ok := exitErr.Sys().(syscall.WaitStatus); ok {
 			if s.Exited() {
-				p.Error("program exited with status %d", s.ExitStatus())
+				p.LogStatus("program exited with status %d", s.ExitStatus())
 			} else if s.Signaled() {
 				signo := s.Signal()
-				p.Error("program killed by signal %d (%v)", signo, signo)
+				p.LogStatus("program killed by signal %d (%v)", signo, signo)
 			} else {
-				p.Error("program failed: %v", exitErr)
+				p.LogStatus("program failed: %v", exitErr)
 			}
 		} else {
 			s := exitErr.ProcessState
 
 			if s.Exited() {
-				p.Error("program exited with status %d", s.ExitCode())
+				p.LogStatus("program exited with status %d", s.ExitCode())
 			} else {
-				p.Error("program failed: %v", exitErr)
+				p.LogStatus("program failed: %v", exitErr)
 			}
 		}
 	}
